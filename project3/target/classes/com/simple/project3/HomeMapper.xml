@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="HomeMapper">
+
+	<select id="checkUserID" parameterType="String" resultType="int">
+		SELECT COUNT(userID)
+		FROM p3member
+		WHERE userID = #{userID}
+	</select>
+	
+	<insert id="setFile" parameterType="com.simple.project3.HomeVO">
+		INSERT INTO p3file(fileSeq,memberSeq,fileType,fileOrgName,fileNewName,fileSize,fileInformation,fileTag) 
+		VALUES(seq_p3file.nextval,#{memberSeq},#{fileType},#{fileOrgName},#{fileNewName},#{fileSize},#{fileInformation},#{fileTag})
+	</insert>
+	
+	<select id="getFileCnt" parameterType="com.simple.project3.HomeVO" resultType="int">
+		SELECT COUNT(*)
+		FROM 
+			(SELECT memberSeq
+			 FROM p3file 
+			 WHERE status=1 and filetype=#{fileType}
+			 <if test="fileTag!=null and fileTag!=''">
+			 	AND fileTag = '%'||#{fileTag}||'%'
+			 </if>
+			 ) A 
+		JOIN 
+			(SELECT memberSeq
+			 FROM p3member
+			 WHERE status=1) B
+		ON A.memberseq=B.memberseq	
+	</select>
+	
+	<select id="getFileList" parameterType="com.simple.project3.HomeVO" resultType="com.simple.project3.HomeVO">
+		<if test="memberSeq!=null and memberSeq!=0">
+			SELECT *
+			FROM(
+				SELECT ROW_NUMBER() OVER(ORDER BY uploaddate DESC) NUM, A.*,nvl(B.status,0) status 
+				FROM
+					(SELECT A.*,B.userID
+					FROM 
+						(SELECT fileSeq,memberSeq,fileOrgName,fileNewName,fileSize,fileinformation,fileTag,uploadDate
+						 FROM p3file 
+						 WHERE status=1 AND filetype=#{fileType}
+						 <if test="fileTag!=null and fileTag!=''">
+						 	AND fileTag = '%'||#{fileTag}||'%'
+						 </if>
+						 ) A 
+					JOIN 
+						(SELECT * 
+						 FROM p3member 
+						 WHERE status=1) B
+					ON A.memberseq=B.memberseq) A
+				LEFT JOIN 
+					(SELECT status,fileseq 
+					 FROM p3heart 
+					 WHERE status=1 and memberseq=#{memberSeq}) B
+	            ON a.fileseq=b.fileseq
+			)
+			WHERE NUM BETWEEN #{startRno} AND #{endRno}
+		</if>
+		<if test="memberSeq==null or memberSeq==0">
+			SELECT *
+			FROM(
+				SELECT ROW_NUMBER() OVER(ORDER BY uploaddate DESC) NUM, A.*,B.userID
+				FROM 
+					(SELECT fileSeq,memberSeq,fileOrgName,fileNewName,fileSize,fileinformation,fileTag,uploadDate
+					 FROM p3file 
+					 WHERE status=1 AND filetype=#{fileType}
+					 <if test="fileTag!=null and fileTag!=''">
+					 	AND fileTag LIKE '%'||#{fileTag}||'%'
+					 </if>
+					 ) A 
+				JOIN 
+					(SELECT * 
+					 FROM p3member 
+					 WHERE status=1) B
+				ON A.memberseq=B.memberseq
+			)
+			WHERE NUM BETWEEN #{startRno} AND #{endRno}
+		</if>
+	</select>
+	
+	<select id="getFile" parameterType="com.simple.project3.HomeVO" resultType="com.simple.project3.HomeVO">
+		<if test="memberSeq!=null and memberSeq!=0">
+			SELECT ROW_NUMBER() OVER(ORDER BY uploaddate DESC) NUM, A.*,nvl(B.status,0) status 
+			FROM
+				(SELECT A.*,B.userID
+				FROM 
+					(SELECT fileSeq,memberSeq,fileOrgName,fileNewName,fileSize,fileinformation,fileTag,uploadDate,fileType
+					 FROM p3file 
+					 WHERE status=1 AND fileSeq=#{fileSeq}) A 
+				JOIN 
+					(SELECT * 
+					 FROM p3member 
+					 WHERE status=1) B
+				ON A.memberseq=B.memberseq) A
+			LEFT JOIN 
+				(SELECT status,fileseq 
+				 FROM p3heart 
+				 WHERE status=1 and memberseq=#{memberSeq}) B
+            ON a.fileseq=b.fileseq
+		</if>
+		<if test="memberSeq==null or memberSeq==0">
+			SELECT ROW_NUMBER() OVER(ORDER BY uploaddate DESC) NUM, A.*,B.userID
+			FROM 
+				(SELECT fileSeq,memberSeq,fileOrgName,fileNewName,fileSize,fileinformation,fileTag,uploadDate,fileType
+				 FROM p3file 
+				 WHERE status=1 AND fileSeq=#{fileSeq}) A 
+			JOIN 
+				(SELECT * 
+				 FROM p3member 
+				 WHERE status=1) B
+			ON A.memberseq=B.memberseq
+		</if>	
+	</select>
+	
+	<insert id="setFileDown" parameterType="com.simple.project3.HomeVO">
+		INSERT INTO p3download
+		VALUES(#{fileSeq},#{memberSeq},sysdate)
+	</insert>
+	
+	<select id="getTagList" parameterType="com.simple.project3.HomeVO" resultType="com.simple.project3.HomeVO">
+		SELECT *
+			FROM(
+				SELECT ROW_NUMBER() OVER(ORDER BY count(*) DESC) NUM, COL AS fileTag
+				FROM(
+					SELECT Regexp_Substr((SELECT tag FROM (SELECT listagg(fileTag||',')WITHIN GROUP (ORDER BY fileTag) AS tag
+					from (SELECT 1,fileTag FROM p3file WHERE filetype=#{fileType})
+					GROUP BY 1)),'[^,]+', 1, Level) COL FROM Dual
+					Connect By Regexp_Substr((SELECT tag FROM (SELECT listagg(fileTag||',')WITHIN GROUP (ORDER BY fileTag) AS tag
+					FROM (SELECT 1,fileTag FROM p3file WHERE filetype=#{fileType})
+					GROUP BY 1)), '[^,]+', 1, Level) 
+					Is Not Null
+				)
+		        GROUP BY COL
+		)
+		WHERE NUM BETWEEN 1 AND 20
+	</select>
+	
+	<insert id="setMember" parameterType="com.simple.project3.HomeVO">
+		INSERT INTO p3member
+		VALUES(seq_p3member.nextval,#{userName},#{userID},#{pwd},1)
+	</insert>
+	
+	<select id="getLogin" parameterType="com.simple.project3.HomeVO" resultType="com.simple.project3.HomeVO">
+		SELECT *
+		FROM p3member
+		WHERE status=1 and userID=#{userID} and pwd=#{pwd}
+	</select>
+
+</mapper>
